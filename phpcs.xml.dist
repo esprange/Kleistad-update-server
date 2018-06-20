@@ -1,6 +1,15 @@
 <?xml version="1.0"?>
 <ruleset name="WordPress Coding Standards for Plugins">
 	<!-- Check all PHP files in directory tree by default. -->
+
+	<rule ref="WordPress-Core" />
+	<rule ref="WordPress-Docs" />
+	<!--<rule ref="WordPress-Extra" >
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_read_fopen"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_read_fclose"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_read_fwrite"/>
+	</rule-->
+
 	<arg name="extensions" value="php"/>
 	<file>.</file>
 
