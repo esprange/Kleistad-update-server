@@ -16,51 +16,20 @@ $slug        = 'kleistad';
 $zipfile     = "$slug.zip";
 $pluginfile  = "$slug.php";
 $counterfile = 'counter.txt';
+$base_url    = 'http://' . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] ) . '/';
+$count       = file_exists( $counterfile ) ? intval( file_get_contents( $counterfile ) ) : 0;
 
 if ( is_null( filter_input( INPUT_POST, 'action' ) ) ) {
-	// Why ? echo '0'.
 	header( 'Cache-Control: public' );
 	header( 'Content-Description: File Transfer' );
 	header( 'Content-Type: application/zip' );
 	readfile( $zipfile );
-
-	$fp = @fopen( $counterfile, 'r+' );
-	if ( false === $fp ) {
-		$fp = fopen( $counterfile, 'w+' );
-	}
-	while ( ! flock( $fp, LOCK_EX ) ) {
-		sleep( 1 );
-	}
-	$count = intval( fread( $fp, filesize( $counterfile ) ) );
-	$count++;
-	ftruncate( $fp, 0 );
-	fwrite( $fp, $count );
-	fflush( $fp );
-	flock( $fp, LOCK_UN );
-	fclose( $fp );
+	file_put_contents( $counterfile, ++$count, LOCK_EX );
 	exit;
 }
 
-$fp   = fopen( "zip://$path/$zipfile#$slug/$pluginfile", 'r' );
-$data = fread( $fp, 8192 );
-fclose( $fp );
-
-$fp    = fopen( "zip://$path/$zipfile#$slug/README.txt", 'r' );
-$data .= fread( $fp, 8192 );
-fclose( $fp );
-
-$fp = @fopen( $counterfile, 'r' );
-if ( false === $fp ) {
-	$count = 0;
-	$fp    = fopen( $counterfile, 'w+' );
-	ftruncate( $fp, 0 );
-	fwrite( $fp, $count );
-	fflush( $fp );
-	flock( $fp, LOCK_UN );
-} else {
-	$count = intval( fread( $fp, filesize( $counterfile ) ) );
-}
-fclose( $fp );
+$data_pluginfile = file_get_contents( "zip://$path/$zipfile#$slug/$pluginfile", false, null, 0, 8192 );
+$data_readmefile = file_get_contents( "zip://$path/$zipfile#$slug/README.txt" );
 
 $headers = [
 	'Name'        => 'Plugin Name',
@@ -74,7 +43,7 @@ $headers = [
 	'License'     => 'License',
 ];
 
-$data = str_replace( "\r", "\n", $data );
+$data = str_replace( "\r", "\n", $data_pluginfile . $data_readmefile );
 foreach ( $headers as $field => $regex ) {
 	if ( preg_match( '/^[ \t\/*#@]*' . preg_quote( $regex, '/' ) . ':(.*)$/mi', $data, $match ) && $match[1] ) {
 		$headers[ $field ] = trim( preg_replace( '/\s*(?:\*\/|\?>).*/', '', $match[1] ) );
@@ -83,43 +52,110 @@ foreach ( $headers as $field => $regex ) {
 	}
 }
 
+$sections = [
+	'Description'   => 'Description',
+	'Changelog'     => 'Changelog',
+	'UpgradeNotice' => 'Upgrade Notice',
+];
+
+$data = str_replace( "\r", "\n", $data_readmefile );
+foreach ( $sections as $field => $regex ) {
+	$needle = "== $regex ==";
+	$start  = strpos( $data, $needle ) + strlen( $needle );
+	if ( false !== $start ) {
+		$chapter = substr( $data, $start, strpos( $data, '==', $start ) - $start );
+		$text    = '';
+		$list    = false;
+		foreach ( preg_split( "/((\r?\n)|(\r\n?))/", $chapter ) as $line ) {
+			if ( 0 === strpos( trim( $line ), '=' ) ) {
+				$line = ( $list ? '</ul>' : '' ) . preg_replace( [ '/= /', '/ =/' ], [ '<h4>', '</h4>' ], $line );
+				$list = false;
+			}
+			if ( 0 === strpos( trim( $line ), '*' ) ) {
+				$line = ( ! $list ? '<ul>' : '' ) . str_replace( '*', '<li>', $line ) . '</li>';
+				$list = true;
+			}
+			if ( 0 === strpos( trim( $line ), '#' ) ) {
+				$line = str_replace( '#', '<h4>', $line ) . '</h4>';
+			}
+			$text .= $line;
+		}
+		$sections[ $field ] = $text . ( $list ? '</ul>' : '' );
+	} else {
+		$sections[ $field ] = '';
+	}
+}
+
 // Set up the properties common to both requests.
-$obj               = new \stdClass();
-$obj->slug         = $slug;
-$obj->name         = $headers['Name'];
-$obj->author       = $headers['Author'];
-$obj->plugin_name  = $headers['Name'];
-$obj->description  = $headers['Description'];
-$obj->new_version  = $headers['Version'];
-$obj->tested       = $headers['Tested'];
-$obj->required_php = '5.6';
-$obj->url          = $headers['PluginURI'];
-$obj->homepage     = $obj->url;
-$obj->package      = 'http://' . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] ) . '/' . $zipfile;
-$obj->requires     = $headers['Requires'];
-$obj->downloaded   = $count;
-// $obj->active_installs = 1;
-$obj->last_updated  = strftime( '%Y-%m-%d', filemtime( $zipfile ) );
-$obj->download_link = $obj->package;
-$obj->license       = $headers['License'];
-// $obj->sections        = [
-// 'description'     => 'De nieuwe versie van de Kleistad plugin',
-// 'another_section' => 'This is another section',
-// 'changelog'       => 'Some new features'
-// ];
-// $obj->fields       = [
-// 'banners' => [],
-// 'reviews' => false,
-// ];
-// $obj->banners = [
-// 'low' => 'https://ps.w.org/wp-mybackup/assets/banner-772x250.png?rev=1244519',
-// 'high' => '',
-// ];
+$obj_info = (object) [
+	'id'             => $slug,
+	'slug'           => $slug,
+	'plugin'         => "$slug/$slug.php",
+	'name'           => $headers['Name'],
+	'author'         => $headers['Author'],
+	'plugin_name'    => $headers['Name'],
+	'description'    => $headers['Description'],
+	'version'        => $headers['Version'],
+	'tested'         => $headers['Tested'],
+	'required_php'   => '5.6',
+	'url'            => $headers['PluginURI'],
+	'icons'          => [
+		'default' => $base_url . 'images/logo-kleistad.png',
+	],
+	'banners'        => [
+		'low' => $base_url . 'images/banner-kleistad-772x250.png',
+	],
+	'banners_rtl'    => [],
+	'upgrade_notice' => $sections['UpgradeNotice'],
+	'homepage'       => $headers['PluginURI'],
+	'package'        => $base_url . $zipfile,
+	'requires'       => $headers['Requires'],
+	'downloaded'     => $count,
+	'last_updated'   => strftime( '%Y-%m-%d', filemtime( $zipfile ) ),
+	'download_link'  => $base_url . $zipfile,
+	'license'        => $headers['License'],
+	'sections'       => [
+		'description' => $sections['Description'],
+		'changelog'   => $sections['Changelog'],
+	],
+	'fields'         => [
+		'short_description' => true,
+		'sections'          => true,
+		'rating'            => false,
+		'ratings'           => false,
+		'added'             => false,
+		'tags'              => true,
+		'donate_link'       => false,
+		'reviews'           => false,
+		'versions'          => false,
+		'compatibility'     => false,
+		'banners'           => true,
+		'icons'             => true,
+	],
+];
+
+$obj_version = (object) [
+	'id'             => $slug,
+	'slug'           => $slug,
+	'plugin'         => "$slug/$slug.php",
+	'new_version'    => $headers['Version'],
+	'tested'         => $headers['Tested'],
+	'url'            => $headers['PluginURI'],
+	'package'        => $base_url . $zipfile,
+	'icons'          => [
+		'default' => $base_url . 'images/logo-kleistad.png',
+	],
+	'banners'        => [
+		'low' => $base_url . 'images/banner-kleistad-772x250.png',
+	],
+	'banners_rtl'    => [],
+];
+
 switch ( filter_input( INPUT_POST, 'action' ) ) {
 	case 'version':
-		echo serialize( $obj );
+		echo serialize( $obj_version );
 		break;
 	case 'info':
-		echo serialize( $obj );
+		echo serialize( $obj_info );
 		break;
 }
