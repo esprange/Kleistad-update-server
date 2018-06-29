@@ -135,20 +135,21 @@ $obj_info = (object) [
 ];
 
 $obj_version = (object) [
-	'id'             => $slug,
-	'slug'           => $slug,
-	'plugin'         => "$slug/$slug.php",
-	'new_version'    => $headers['Version'],
-	'tested'         => $headers['Tested'],
-	'url'            => $headers['PluginURI'],
-	'package'        => $base_url . $zipfile,
-	'icons'          => [
+	'id'           => $slug,
+	'slug'         => $slug,
+	'plugin'       => "$slug/$slug.php",
+	'new_version'  => $headers['Version'],
+	'tested'       => $headers['Tested'],
+	'required_php' => '5.6',
+	'url'          => $headers['PluginURI'],
+	'package'      => $base_url . $zipfile,
+	'icons'        => [
 		'default' => $base_url . 'images/logo-kleistad.png',
 	],
-	'banners'        => [
+	'banners'      => [
 		'low' => $base_url . 'images/banner-kleistad-772x250.png',
 	],
-	'banners_rtl'    => [],
+	'banners_rtl'  => [],
 ];
 
 switch ( filter_input( INPUT_POST, 'action' ) ) {
