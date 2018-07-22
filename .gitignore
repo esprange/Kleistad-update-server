@@ -21,5 +21,9 @@ $RECYCLE.BIN/
 # log files
 *.log
 
+package-lock.json
+counter.txt
+node_modules/
+
 # Plugin installer files
 *.zip
