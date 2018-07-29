@@ -4,7 +4,7 @@
  *
  * @author   Eric Sprangers <eric.sprangers@gmail.com>
  * @license  GPL3.0
- * @package  Kleistad
+ * @package  WP_private_update
  */
 
 $path = pathinfo( realpath( __FILE__ ), PATHINFO_DIRNAME ) . '/';
@@ -12,12 +12,27 @@ $path = pathinfo( realpath( __FILE__ ), PATHINFO_DIRNAME ) . '/';
 ini_set( 'log_errors', E_ALL );
 ini_set( 'error_log', $path . '/error.log' );
 
-$slug        = 'kleistad';
-$zipfile     = "$slug.zip";
-$pluginfile  = "$slug.php";
-$counterfile = 'counter.txt';
-$base_url    = 'http://' . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] ) . '/';
-$count       = file_exists( $counterfile ) ? intval( file_get_contents( $counterfile ) ) : 0;
+$slug = filter_INPUT( INPUT_POST, 'plugin' );
+if ( is_null( $slug ) ) {
+	$zipfiles = glob( '*.zip' );
+	if ( empty( $zipfiles ) ) {
+		error_log( 'No zip file found' );
+		exit;
+	}
+	$zipfile = $zipfiles[0];
+	$slug    = basename( $zipfile, '.zip' );
+} else {
+	$zipfile = "$slug.zip";
+	if ( ! file_exists( $zipfile ) ) {
+		error_log( "Zip file $zipfile not found" );
+		exit;
+	}
+}
+$pluginfile   = "$slug.php";
+$counterfile  = 'counter.txt';
+$base_url     = 'http://' . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] ) . '/';
+$count        = file_exists( $counterfile ) ? intval( file_get_contents( $counterfile ) ) : 0;
+$required_php = '5.6';
 
 if ( is_null( filter_input( INPUT_POST, 'action' ) ) ) {
 	header( 'Cache-Control: public' );
@@ -97,13 +112,13 @@ $obj_info = (object) [
 	'description'    => $headers['Description'],
 	'version'        => $headers['Version'],
 	'tested'         => $headers['Tested'],
-	'required_php'   => '5.6',
+	'required_php'   => $required_php,
 	'url'            => $headers['PluginURI'],
 	'icons'          => [
-		'default' => $base_url . 'images/logo-kleistad.png',
+		'default' => $base_url . "images/logo-$slug.png",
 	],
 	'banners'        => [
-		'low' => $base_url . 'images/banner-kleistad-772x250.png',
+		'low' => $base_url . "images/banner-$slug-772x250.png",
 	],
 	'banners_rtl'    => [],
 	'upgrade_notice' => $sections['UpgradeNotice'],
@@ -140,14 +155,14 @@ $obj_version = (object) [
 	'plugin'       => "$slug/$slug.php",
 	'new_version'  => $headers['Version'],
 	'tested'       => $headers['Tested'],
-	'required_php' => '5.6',
+	'required_php' => $required_php,
 	'url'          => $headers['PluginURI'],
 	'package'      => $base_url . $zipfile,
 	'icons'        => [
-		'default' => $base_url . 'images/logo-kleistad.png',
+		'default' => $base_url . "images/logo-$slug.png",
 	],
 	'banners'      => [
-		'low' => $base_url . 'images/banner-kleistad-772x250.png',
+		'low' => $base_url . "images/banner-$slug-772x250.png",
 	],
 	'banners_rtl'  => [],
 ];
