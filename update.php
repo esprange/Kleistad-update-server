@@ -4,7 +4,7 @@
  *
  * @author   Eric Sprangers <eric.sprangers@gmail.com>
  * @license  GPL3.0
- * @package  WP_private_update
+ * @package  Kleistad
  */
 
 $path = pathinfo( realpath( __FILE__ ), PATHINFO_DIRNAME ) . '/';
@@ -12,40 +12,20 @@ $path = pathinfo( realpath( __FILE__ ), PATHINFO_DIRNAME ) . '/';
 ini_set( 'log_errors', E_ALL );
 ini_set( 'error_log', $path . '/error.log' );
 
-$slug = filter_INPUT( INPUT_POST, 'plugin' );
-if ( is_null( $slug ) ) {
-	$zipfiles = glob( '*.zip' );
-	if ( empty( $zipfiles ) ) {
-		error_log( 'No zip file found' );
-		exit;
-	}
-	$zipfile = $zipfiles[0];
-	$slug    = basename( $zipfile, '.zip' );
-} else {
-	$zipfile = "$slug.zip";
-	if ( ! file_exists( $zipfile ) ) {
-		error_log( "Zip file $zipfile not found" );
-		exit;
-	}
-}
-$pluginfile   = "$slug.php";
-$counterfile  = 'counter.txt';
-$base_url     = 'http://' . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] ) . '/';
-$count        = file_exists( $counterfile ) ? intval( file_get_contents( $counterfile ) ) : 0;
-$required_php = '5.6';
-
-if ( is_null( filter_input( INPUT_POST, 'action' ) ) ) {
-	header( 'Cache-Control: public' );
-	header( 'Content-Description: File Transfer' );
-	header( 'Content-Type: application/zip' );
-	readfile( $zipfile );
-	file_put_contents( $counterfile, ++$count, LOCK_EX );
+$zipfiles = glob( '*.zip' );
+if ( empty( $zipfiles ) ) {
+	error_log( 'No zip file found' );
 	exit;
 }
-
+$action          = filter_input( INPUT_GET, 'action' );// ?? filter_input( INPUT_POST, 'action' );
+$zipfile         = $zipfiles[0];
+$slug            = basename( $zipfile, '.zip' );
+$pluginfile      = "$slug.php";
+$base_url        = ( ( isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] );
+$counterfile     = 'counter/counter.txt';
+$count           = intval( file_get_contents( $base_url . $counterfile ) );
 $data_pluginfile = file_get_contents( "zip://$path/$zipfile#$slug/$pluginfile", false, null, 0, 8192 );
 $data_readmefile = file_get_contents( "zip://$path/$zipfile#$slug/README.txt" );
-
 $headers = [
 	'Name'        => 'Plugin Name',
 	'PluginURI'   => 'Plugin URI',
@@ -56,6 +36,7 @@ $headers = [
 	'Requires'    => 'Requires at least',
 	'Tested'      => 'Tested up to',
 	'License'     => 'License',
+	'RequiresPHP' => 'Requires at least PHP version',
 ];
 
 $data = str_replace( "\r", "\n", $data_pluginfile . $data_readmefile );
@@ -112,7 +93,7 @@ $obj_info = (object) [
 	'description'    => $headers['Description'],
 	'version'        => $headers['Version'],
 	'tested'         => $headers['Tested'],
-	'required_php'   => $required_php,
+	'requires_php'   => $headers['RequiresPHP'],
 	'url'            => $headers['PluginURI'],
 	'icons'          => [
 		'default' => $base_url . "images/logo-$slug.png",
@@ -126,7 +107,7 @@ $obj_info = (object) [
 	'package'        => $base_url . $zipfile,
 	'requires'       => $headers['Requires'],
 	'downloaded'     => $count,
-	'last_updated'   => strftime( '%Y-%m-%d', filemtime( $zipfile ) ),
+	'last_updated'   => strftime( '%Y-%m-%d %R', filemtime( $zipfile ) ),
 	'download_link'  => $base_url . $zipfile,
 	'license'        => $headers['License'],
 	'sections'       => [
@@ -155,7 +136,7 @@ $obj_version = (object) [
 	'plugin'       => "$slug/$slug.php",
 	'new_version'  => $headers['Version'],
 	'tested'       => $headers['Tested'],
-	'required_php' => $required_php,
+	'requires_php' => $headers['RequiresPHP'],
 	'url'          => $headers['PluginURI'],
 	'package'      => $base_url . $zipfile,
 	'icons'        => [
@@ -167,11 +148,18 @@ $obj_version = (object) [
 	'banners_rtl'  => [],
 ];
 
-switch ( filter_input( INPUT_POST, 'action' ) ) {
+switch ( $action ) {
 	case 'version':
 		echo serialize( $obj_version );
 		break;
 	case 'info':
 		echo serialize( $obj_info );
+		break;
+	default:
+		header( 'Cache-Control: public' );
+		header( 'Content-Description: File Transfer' );
+		header( 'Content-Type: application/zip' );
+		readfile( $zipfile );
+		file_put_contents( $path . $counterfile, ++$count . "\n", LOCK_EX );
 		break;
 }
