@@ -11,22 +11,22 @@ $path = pathinfo( realpath( __FILE__ ), PATHINFO_DIRNAME ) . '/';
 
 ini_set( 'log_errors', E_ALL );
 ini_set( 'error_log', $path . '/error.log' );
-
 $zipfiles = glob( '*.zip' );
 if ( empty( $zipfiles ) ) {
 	error_log( 'No zip file found' );
 	exit;
 }
-$action          = filter_input( INPUT_GET, 'action' );// ?? filter_input( INPUT_POST, 'action' );
+$action = filter_input( INPUT_GET, 'action' );
+error_log( $_SERVER['REMOTE_ADDR'] . " : $action" );
 $zipfile         = $zipfiles[0];
 $slug            = basename( $zipfile, '.zip' );
 $pluginfile      = "$slug.php";
-$base_url        = ( ( isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] );
+$base_url        = ( ( isset( $_SERVER['HTTPS'] ) && 'on' === $_SERVER['HTTPS'] ) ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] );
 $counterfile     = 'counter/counter.txt';
-$count           = intval( file_get_contents( $base_url . $counterfile ) );
+$count           = intval( @file_get_contents( $base_url . $counterfile ) );
 $data_pluginfile = file_get_contents( "zip://$path/$zipfile#$slug/$pluginfile", false, null, 0, 8192 );
 $data_readmefile = file_get_contents( "zip://$path/$zipfile#$slug/README.txt" );
-$headers = [
+$headers         = array(
 	'Name'        => 'Plugin Name',
 	'PluginURI'   => 'Plugin URI',
 	'Version'     => 'Version',
@@ -37,7 +37,7 @@ $headers = [
 	'Tested'      => 'Tested up to',
 	'License'     => 'License',
 	'RequiresPHP' => 'Requires at least PHP version',
-];
+);
 
 $data = str_replace( "\r", "\n", $data_pluginfile . $data_readmefile );
 foreach ( $headers as $field => $regex ) {
@@ -48,11 +48,11 @@ foreach ( $headers as $field => $regex ) {
 	}
 }
 
-$sections = [
+$sections = array(
 	'Description'   => 'Description',
 	'Changelog'     => 'Changelog',
 	'UpgradeNotice' => 'Upgrade Notice',
-];
+);
 
 $data = str_replace( "\r", "\n", $data_readmefile );
 foreach ( $sections as $field => $regex ) {
@@ -64,7 +64,7 @@ foreach ( $sections as $field => $regex ) {
 		$list    = false;
 		foreach ( preg_split( "/((\r?\n)|(\r\n?))/", $chapter ) as $line ) {
 			if ( 0 === strpos( trim( $line ), '=' ) ) {
-				$line = ( $list ? '</ul>' : '' ) . preg_replace( [ '/= /', '/ =/' ], [ '<h4>', '</h4>' ], $line );
+				$line = ( $list ? '</ul>' : '' ) . preg_replace( array( '/= /', '/ =/' ), array( '<h4>', '</h4>' ), $line );
 				$list = false;
 			}
 			if ( 0 === strpos( trim( $line ), '*' ) ) {
@@ -83,7 +83,7 @@ foreach ( $sections as $field => $regex ) {
 }
 
 // Set up the properties common to both requests.
-$obj_info = (object) [
+$obj_info = (object) array(
 	'id'             => $slug,
 	'slug'           => $slug,
 	'plugin'         => "$slug/$slug.php",
@@ -95,13 +95,13 @@ $obj_info = (object) [
 	'tested'         => $headers['Tested'],
 	'requires_php'   => $headers['RequiresPHP'],
 	'url'            => $headers['PluginURI'],
-	'icons'          => [
+	'icons'          => array(
 		'default' => $base_url . "images/logo-$slug.png",
-	],
-	'banners'        => [
+	),
+	'banners'        => array(
 		'low' => $base_url . "images/banner-$slug-772x250.png",
-	],
-	'banners_rtl'    => [],
+	),
+	'banners_rtl'    => array(),
 	'upgrade_notice' => $sections['UpgradeNotice'],
 	'homepage'       => $headers['PluginURI'],
 	'package'        => $base_url . $zipfile,
@@ -110,11 +110,11 @@ $obj_info = (object) [
 	'last_updated'   => strftime( '%Y-%m-%d %R', filemtime( $zipfile ) ),
 	'download_link'  => $base_url . $zipfile,
 	'license'        => $headers['License'],
-	'sections'       => [
+	'sections'       => array(
 		'description' => $sections['Description'],
 		'changelog'   => $sections['Changelog'],
-	],
-	'fields'         => [
+	),
+	'fields'         => array(
 		'short_description' => true,
 		'sections'          => true,
 		'rating'            => false,
@@ -127,10 +127,10 @@ $obj_info = (object) [
 		'compatibility'     => false,
 		'banners'           => true,
 		'icons'             => true,
-	],
-];
+	),
+);
 
-$obj_version = (object) [
+$obj_version = (object) array(
 	'id'           => $slug,
 	'slug'         => $slug,
 	'plugin'       => "$slug/$slug.php",
@@ -139,14 +139,14 @@ $obj_version = (object) [
 	'requires_php' => $headers['RequiresPHP'],
 	'url'          => $headers['PluginURI'],
 	'package'      => $base_url . $zipfile,
-	'icons'        => [
+	'icons'        => array(
 		'default' => $base_url . "images/logo-$slug.png",
-	],
-	'banners'      => [
+	),
+	'banners'      => array(
 		'low' => $base_url . "images/banner-$slug-772x250.png",
-	],
-	'banners_rtl'  => [],
-];
+	),
+	'banners_rtl'  => array(),
+);
 
 switch ( $action ) {
 	case 'version':
@@ -160,6 +160,6 @@ switch ( $action ) {
 		header( 'Content-Description: File Transfer' );
 		header( 'Content-Type: application/zip' );
 		readfile( $zipfile );
-		file_put_contents( $path . $counterfile, ++$count . "\n", LOCK_EX );
+		@file_put_contents( $path . $counterfile, ++$count . "\n", LOCK_EX ); // phpcs:ignore
 		break;
 }
