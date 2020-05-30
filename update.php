@@ -7,26 +7,48 @@
  * @package  Kleistad
  */
 
-$path = pathinfo( realpath( __FILE__ ), PATHINFO_DIRNAME ) . '/';
+declare( strict_types = 1 );
 
-ini_set( 'log_errors', E_ALL );
-ini_set( 'error_log', $path . '/error.log' );
-$zipfiles = glob( '*.zip' );
-if ( empty( $zipfiles ) ) {
-	error_log( 'No zip file found' );
-	exit;
-}
-$action = filter_input( INPUT_GET, 'action' );
+define( 'COUNTERFILE', 'counter.txt' );
+define( 'LOGFILE', 'error.log' );
+
+ini_set( 'log_errors', '1' );
+ini_set( 'error_log', LOGFILE );
+error_reporting( E_ALL );
+
+$action   = filter_input( INPUT_GET, 'action' );
+$base_url = ( ( isset( $_SERVER['HTTPS'] ) && 'on' === $_SERVER['HTTPS'] ) ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] ) . '/';
 error_log( $_SERVER['REMOTE_ADDR'] . " : $action" );
-$zipfile         = $zipfiles[0];
-$slug            = basename( $zipfile, '.zip' );
-$pluginfile      = "$slug.php";
-$base_url        = ( ( isset( $_SERVER['HTTPS'] ) && 'on' === $_SERVER['HTTPS'] ) ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . dirname( $_SERVER['PHP_SELF'] );
-$counterfile     = 'counter/counter.txt';
-$count           = intval( @file_get_contents( $base_url . $counterfile ) );
-$data_pluginfile = file_get_contents( "zip://$path/$zipfile#$slug/$pluginfile", false, null, 0, 8192 );
-$data_readmefile = file_get_contents( "zip://$path/$zipfile#$slug/README.txt" );
-$headers         = array(
+
+try {
+	$zipfiles = glob( '*.zip' );
+	if ( empty( $zipfiles ) ) {
+		throw new Exception( 'No zip file found' );
+	} else {
+		$zipfile = $zipfiles[0];
+	}
+
+	$slug = basename( $zipfile, '.zip' );
+	$zip  = new ZipArchive();
+	if ( true === $zip->open( $zipfile ) ) {
+		$data_pluginfile = $zip->getFromName( "$slug/$slug.php" );
+		if ( false === $data_pluginfile ) {
+			throw new Exception( "Missing $slug.php file" );
+		}
+		$data_readmefile = $zip->getFromName( "$slug/README.txt" );
+		if ( false === $data_readmefile ) {
+			throw new Exception( 'Missing README.txt file' );
+		};
+		$zip->close();
+	} else {
+		throw new Exception( "Zip file $zipfile cannot be openend" );
+	}
+} catch ( Exception $exception ) {
+	error_log( $exception->getMessage() );
+	die;
+}
+
+$headers = array(
 	'Name'        => 'Plugin Name',
 	'PluginURI'   => 'Plugin URI',
 	'Version'     => 'Version',
@@ -81,8 +103,6 @@ foreach ( $sections as $field => $regex ) {
 		$sections[ $field ] = '';
 	}
 }
-
-// Set up the properties common to both requests.
 $obj_info = (object) array(
 	'id'             => $slug,
 	'slug'           => $slug,
@@ -106,7 +126,7 @@ $obj_info = (object) array(
 	'homepage'       => $headers['PluginURI'],
 	'package'        => $base_url . $zipfile,
 	'requires'       => $headers['Requires'],
-	'downloaded'     => $count,
+	'downloaded'     => @filesize( COUNTERFILE ) ?: 0, // phpcs:ignore
 	'last_updated'   => strftime( '%Y-%m-%d %R', filemtime( $zipfile ) ),
 	'download_link'  => $base_url . $zipfile,
 	'license'        => $headers['License'],
@@ -156,10 +176,10 @@ switch ( $action ) {
 		echo serialize( $obj_info );
 		break;
 	default:
+		file_put_contents( COUNTERFILE, '1', FILE_APPEND ); // phpcs:ignore
 		header( 'Cache-Control: public' );
 		header( 'Content-Description: File Transfer' );
 		header( 'Content-Type: application/zip' );
+		header( 'Content-Disposition: attachment; filename="' . $slug . '.zip"' );
 		readfile( $zipfile );
-		@file_put_contents( $path . $counterfile, ++$count . "\n", LOCK_EX ); // phpcs:ignore
-		break;
 }
